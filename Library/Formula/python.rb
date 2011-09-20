@@ -1,15 +1,5 @@
 require 'formula'
 
-# This formula for Python 2.7.1
-# Python 3.x is available as a separate formula:
-# $ brew install python3
-
-class Distribute < Formula
-  url 'http://pypi.python.org/packages/source/d/distribute/distribute-0.6.15.tar.gz'
-  md5 'ea52e1412e7ff560c290266ed400e216'
-end
-
-
 # Was a Framework build requested?
 def build_framework?; ARGV.include? '--framework'; end
 
@@ -18,10 +8,15 @@ def as_framework?
   (self.installed? and File.exists? prefix+"Frameworks/Python.framework") or build_framework?
 end
 
+class Distribute < Formula
+  url 'http://pypi.python.org/packages/source/d/distribute/distribute-0.6.21.tar.gz'
+  md5 'c8cfcfd42ec9ab900fb3960a3308eef2'
+end
+
 class Python < Formula
-  url 'http://www.python.org/ftp/python/2.7.1/Python-2.7.1.tar.bz2'
+  url 'http://www.python.org/ftp/python/2.7.2/Python-2.7.2.tar.bz2'
   homepage 'http://www.python.org/'
-  md5 'aa27bc25725137ba155910bd8e5ddc4f'
+  md5 'ba7b2f11ffdbf195ee0d111b9455a5bd'
 
   depends_on 'readline' => :optional # Prefer over OS X's libedit
   depends_on 'sqlite'   => :optional # Prefer over OS X's older version
@@ -47,7 +42,7 @@ class Python < Formula
 
     args = ["--prefix=#{prefix}"]
 
-    if ARGV.include? '--universal'
+    if ARGV.build_universal?
       args << "--enable-universalsdk=/" << "--with-universal-archs=intel"
     end
 
@@ -84,6 +79,13 @@ class Python < Formula
     # Symlink the prefix site-packages into the cellar.
     ln_s prefix_site_packages, site_packages
 
+    # This is a fix for better interoperability with pyqt. See:
+    # https://github.com/mxcl/homebrew/issues/6176
+    if not as_framework?
+      (bin+"pythonw").make_link bin+"python"
+      (bin+"pythonw2.7").make_link bin+"python2.7"
+    end
+
     # Tell distutils-based installers where to put scripts
     scripts_folder.mkpath
     (effective_lib+"python2.7/distutils/distutils.cfg").write <<-EOF.undent
@@ -106,8 +108,8 @@ class Python < Formula
 
       You may want to symlink this Framework to a standard OS X location,
       such as:
-        mkdir ~/Frameworks
-        ln -s "#{prefix}/Frameworks/Python.framework" ~/Frameworks
+          mkdir ~/Frameworks
+          ln -s "#{prefix}/Frameworks/Python.framework" ~/Frameworks
     EOS
 
     general_caveats = <<-EOS.undent
@@ -120,8 +122,8 @@ class Python < Formula
 
       Distribute has been installed, so easy_install is available.
       To update distribute itself outside of Homebrew:
-      $ easy_install pip
-      $ pip install --upgrade distribute
+          #{scripts_folder}/easy_install pip
+          #{scripts_folder}/pip install --upgrade distribute
 
       See: https://github.com/mxcl/homebrew/wiki/Homebrew-and-Python
     EOS
@@ -131,10 +133,7 @@ class Python < Formula
     return s
   end
 
-private
-
-  # Path helpers
-
+  # lib folder,taking into account whether we are a Framework build or not
   def effective_lib
     # If we're installed or installing as a Framework, then use that location.
     return prefix+"Frameworks/Python.framework/Versions/2.7/lib" if as_framework?
@@ -144,7 +143,7 @@ private
 
   # The Cellar location of site-packages
   def site_packages
-    effective_lib + "python2.7/site-packages"
+    effective_lib+"python2.7/site-packages"
   end
 
   # The HOMEBREW_PREFIX location of site-packages
@@ -152,8 +151,8 @@ private
     HOMEBREW_PREFIX+"lib/python2.7/site-packages"
   end
 
+  # Where distribute will install executable scripts
   def scripts_folder
     HOMEBREW_PREFIX+"share/python"
   end
-
 end
